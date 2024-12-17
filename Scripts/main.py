@@ -1,15 +1,20 @@
+import re
 import telebot
 import pandas as pd
 import os
-import re
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 # Telebot Fields
-TOKEN = "7774431217:AAEg7dUvK6s2EfLVJevlCsYxd-YIDYOg5oM"
+TOKEN = "7774431217:AAHiNLWfWzlQCx71maPMQpa3cAeYGmcsvAw"
 bot = telebot.TeleBot(TOKEN)
 
 TEMP_DIR = "temp_files"
 os.makedirs(TEMP_DIR, exist_ok=True)
+
+DATA_DIR = "data"
+os.makedirs(DATA_DIR, exist_ok=True)
+
+USER_STATE = {}
 
 def analyze_group_subjects(file_path: str):
     """
@@ -44,25 +49,67 @@ def analyze_group_subjects(file_path: str):
     
     # Return lessons list
     return result
+
+def analyze_low_attendance(file_path: str):
+    """
+    Анализирует отчет по посещаемости и возвращает список преподавателей с посещаемостью ниже 65%
+
+    :param file_path: Путь к файлу .xlsx
+    :return: Форматированная строка со списком преподавателей
+    """
+    df = pd.read_excel(file_path)
     
+    df = df[:-1]
+
+    df['Средняя посещаемость'] = df['Средняя посещаемость'].str.replace('%', '').astype(float)
+
+    low_attendance = df[df['Средняя посещаемость'] < 65]
+
+    if low_attendance.empty:
+        return "Все преподаватели имеют посещаемость выше 65%"
+    
+    result = "Список преподавателей с посещаемостью групп ниже 65%:\n"
+    for _, row in low_attendance.iterrows():
+        result += f"{row['ФИО преподавателя']} - {row['Средняя посещаемость']}%\n"
+
+    return result
+
+
 # Bot Functions
 
 #regionStart Menu
 @bot.message_handler(commands=['start'])
 def start(message):
     markup = InlineKeyboardMarkup()
-    button = InlineKeyboardButton("Количество пар группы", callback_data="group_subjects")
-    markup.add(button)
+    button1 = InlineKeyboardButton("Количество пар группы", callback_data="group_subjects")
+    button2 = InlineKeyboardButton("Посещаемость ниже 65%", callback_data="low_attendance")
+    markup.add(button1, button2)
     bot.send_message(message.chat.id, "Выберите действие:", reply_markup=markup)
+    #print(message.chat.id) Only for get admin chatID
 
+# Number of lessons of the group
 @bot.callback_query_handler(func=lambda call:call.data == "group_subjects")
 def request_xlsx_file(call):
-    bot.edit_message_text("Пришлите файл формата .xlsx", call.message.chat.id, call.message.message_id)
+    USER_STATE[call.message.chat.id] = "group_subjects"
+    bot.edit_message_text("Бот подсчитает количество проведенных пар по всем дисциплинам\nПришлите файл формата .xlsx", call.message.chat.id, call.message.message_id)
+# Attendance below 65%
+@bot.callback_query_handler(func=lambda call: call.data == "low_attendance")
+def request_attendance_file(call):
+    USER_STATE[call.message.chat.id] = "low_attendance"
+    bot.edit_message_text("Бот выведет список преподавателей, средняя посещаемость которых ниже 65%\nПришлите отчет по посещаемости студентов в формате .xlsx", call.message.chat.id, call.message.message_id)
 
+# Download handler .xlsx files
 @bot.message_handler(content_types=['document'])
 def handle_document(message):
-    file_name = message.document.file_name
+    
+    chat_id = message.chat.id
+    user_state = USER_STATE.get(chat_id)
+    
+    if user_state not in ["group_subjects", "low_attendance"]:
+        bot.reply_to(message, "Пожалуйста, выберите действие из меню.")
+        return
 
+    file_name = message.document.file_name
     _, file_extension = os.path.splitext(file_name)
     file_extension = file_extension.lower()
 
@@ -80,7 +127,13 @@ def handle_document(message):
         new_file.write(downloaded_file)
 
     try:
-        result = analyze_group_subjects(file_path)
+        if user_state == "low_attendance":
+            result = analyze_low_attendance(file_path)
+        elif user_state == "group_subjects":
+            result = analyze_group_subjects(file_path)
+        else:
+            result = "Неизвестное действие. Попробуйте снова."
+
         bot.reply_to(message, result)
     except Exception as e:
         bot.reply_to(message, f"Error: {e}")
