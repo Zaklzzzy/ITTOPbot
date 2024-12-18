@@ -151,7 +151,7 @@ def analyze_lessons_topic(file_path: str):
         teacher = row[teacher_column]
         topic = row[topic_column]
 
-        if not isinstance(topic, str) or not re.match(r"Урок №*. Тема:*", topic):
+        if not isinstance(topic, str) or not re.match(r"Урок №.* Тема:.*", topic):
             incorrect_rows.append(f"Дата: {date} | Преподаватель: {teacher} | Тема: {topic}")
     
     # Make result
@@ -344,7 +344,7 @@ def handle_document(message):
             messages = split_message(result)
             messages = split_message(result)
             bot.reply_to(message, messages[0])
-            bot.reply_to(message, "Ответ слишком большой, отображена только часть данных")
+            bot.reply_to(message, "❗Ответ слишком большой, отображена только часть данных❗")
 
         bot.reply_to(message, result)
         send_menu(message.chat.id)
