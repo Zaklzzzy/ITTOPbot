@@ -16,6 +16,29 @@ os.makedirs(DATA_DIR, exist_ok=True)
 
 USER_STATE = {}
 
+# Additional functions
+def split_message(text, max_lenth=4096):
+    """
+    Разбивает текст на части, не превышающие max_length символов
+    :param text: Исходный текст
+    :param max_length: Максимальная длина части
+    :return: Список частей
+    """
+    lines = text.split("\n")
+    chunks = []
+    current_chunk = ""
+
+    for line in lines:
+        if len(current_chunk) + len(line) + 1 <= max_lenth:
+            current_chunk += line + "\n"
+        else:
+            chunks.append(current_chunk.strip())
+            current_chunk = line + "\n"
+    if current_chunk.strip():
+        chunks.append(current_chunk.strip())
+
+    return chunks
+
 # 1. Number of lessons of the group
 def analyze_group_subjects(file_path: str):
     """
@@ -102,7 +125,44 @@ def analyze_given_homeworks(file_path: str, period):
             results.append(f"{row['Unnamed: 1']}: {percentage:.1f}% (Выдано {given} из {planned})")
 
     return "\n".join(results) if results else "Все ДЗ выданы более чем на 70%."
-# 4. Attendance below 65%
+# 4. Lessons topic check
+def analyze_lessons_topic(file_path: str):
+    """
+    Анализирует темы уроков на соответствие маске “Урок №.* Тема:*”
+
+    :param file_path: Путь к файлу .xlsx
+    :return: Форматированный список несоответствий маске
+    """
+    # Check extension and change engine to read file
+    df = pd.read_excel(file_path)
+
+    # Get all need columns
+    date_column = next((col for col in df.columns if "Date" in col), None)
+    topic_column = next((col for col in df.columns if "Тема" in col), None)
+    teacher_column = next((col for col in df.columns if "ФИО преподавателя" in col), None)
+    
+    if not topic_column:
+        return "Не найдены необходимые столбцы (Date, Тема, ФИО преподавателя)"
+    
+    # Checking for compliance with the mask
+    incorrect_rows = []
+    for _, row in df.iterrows():
+        date = row[date_column]
+        teacher = row[teacher_column]
+        topic = row[topic_column]
+
+        if not isinstance(topic, str) or not re.match(r"Урок №*. Тема:*", topic):
+            incorrect_rows.append(f"Дата: {date} | Преподаватель: {teacher} | Тема: {topic}")
+    
+    # Make result
+    if incorrect_rows:
+        result = "Несоответствия маске \"Урок №. Тема:\":\n"
+        result += "\n".join(incorrect_rows)
+    else:
+        result = "Все темы соответствуют маске Урок №. Тема:"
+    
+    return result
+# 5. Attendance below 65%
 def analyze_low_attendance(file_path: str):
     """
     Анализирует отчет по посещаемости и возвращает список преподавателей с посещаемостью ниже 65%
@@ -126,7 +186,10 @@ def analyze_low_attendance(file_path: str):
         result += f"{row['ФИО преподавателя']} - {row['Средняя посещаемость']:.0f}%\n"
 
     return result
-
+# 6. 
+#def 
+# 7. 
+#def 
 
 # Bot Functions
 
@@ -136,8 +199,8 @@ def send_menu(chat_id):
     group_subjects_button = InlineKeyboardButton("Пары группы", callback_data="group_subjects")
     checked_homeworks_button = InlineKeyboardButton("Проверенные ДЗ", callback_data="checked_homeworks")
     given_homeworks_button = InlineKeyboardButton("Выданные ДЗ", callback_data="given_homeworks")
+    topic_check_button = InlineKeyboardButton("Тема урока", callback_data="topic_check")
     low_attendance_button = InlineKeyboardButton("Посещаемость", callback_data="low_attendance")
-    button5 = InlineKeyboardButton("Тема урока", callback_data="empty")
     button6 = InlineKeyboardButton("Выполнение ДЗ", callback_data="empty")
     button7 = InlineKeyboardButton("Анализ успеваемости", callback_data="empty")
 
@@ -145,8 +208,8 @@ def send_menu(chat_id):
         group_subjects_button, 
         checked_homeworks_button, 
         given_homeworks_button, 
+        topic_check_button, 
         low_attendance_button, 
-        button5, 
         button6, 
         button7
         )
@@ -156,8 +219,8 @@ def send_menu(chat_id):
         "1️⃣ *Пары группы* - количество пар группы по всем дисциплинам за неделю\n"
         "2️⃣ *Проверенные ДЗ* - проверка % проверенных заданий\n"
         "3️⃣ *Выданные ДЗ* - проверка % выданных заданий\n"
-        "4️⃣ *Посещаемость* - анализ посещаемости у преподавателей\n"
-        "5️⃣ *Тема урока* - проверка соответствия темы урока шаблону \"Урок №. Тема:\"\n"
+        "4️⃣ *Тема урока* - проверка соответствия темы урока шаблону \"Урок № . Тема:\"\n"
+        "5️⃣ *Посещаемость* - анализ посещаемости у преподавателей\n"
         "6️⃣ *Выполнение ДЗ* - анализ выполнения ДЗ студентами\n"
         "7️⃣ *Анализ успеваемости* - информация успеваемости студентов"
     )
@@ -173,7 +236,7 @@ def start(message):
 @bot.callback_query_handler(func=lambda call:call.data == "group_subjects")
 def request_xlsx_file(call):
     USER_STATE[call.message.chat.id] = "group_subjects"
-    bot.edit_message_text("Бот подсчитает количество проведенных пар по всем дисциплинам\nПришлите файл формата .xlsx", call.message.chat.id, call.message.message_id)
+    bot.edit_message_text("Бот подсчитает количество проведенных пар по всем дисциплинам\nПришлите расписание группы в формате .xlsx", call.message.chat.id, call.message.message_id)
 
 # 2. Checked homeworks
 @bot.callback_query_handler(func=lambda call:call.data == "checked_homeworks")
@@ -197,18 +260,24 @@ def choose_period_given(call):
 @bot.callback_query_handler(func=lambda call: call.data in ["checked_month", "checked_week", "given_month", "given_week"])
 def request_homeworks_file(call):
     USER_STATE[call.message.chat.id] = call.data
+    message_part = "Пришлите отчет по домашним заданиям формате .xlsx"
     match call.data:
         case "checked_month":
-            bot.edit_message_text("Бот подсчитает % проверенных домашних заданий педагогами на группу за месяц\nПришлите файл формата .xlsx", call.message.chat.id, call.message.message_id)
+            bot.edit_message_text("Бот подсчитает % проверенных домашних заданий педагогами на группу за месяц\n" + message_part, call.message.chat.id, call.message.message_id)
         case "checked_week":
-            bot.edit_message_text("Бот подсчитает % проверенных домашних заданий педагогами на группу за неделю\nПришлите файл формата .xlsx", call.message.chat.id, call.message.message_id)
+            bot.edit_message_text("Бот подсчитает % проверенных домашних заданий педагогами на группу за неделю\n" + message_part, call.message.chat.id, call.message.message_id)
         case "given_month":
-            bot.edit_message_text("Бот подсчитает % выданных домашних заданий педагогами за месяц\nПришлите файл формата .xlsx", call.message.chat.id, call.message.message_id)
+            bot.edit_message_text("Бот подсчитает % выданных домашних заданий педагогами за месяц\n" + message_part, call.message.chat.id, call.message.message_id)
         case "given_week":
-            bot.edit_message_text("Бот подсчитает % выданных домашних заданий педагогами за неделю\nПришлите файл формата .xlsx", call.message.chat.id, call.message.message_id)
-    
+            bot.edit_message_text("Бот подсчитает % выданных домашних заданий педагогами за неделю\n" + message_part, call.message.chat.id, call.message.message_id)
 
-# 4. Attendance below 65%
+# 4. Lessons topic check
+@bot.callback_query_handler(func=lambda call: call.data == "topic_check")
+def request_topic_file(call):
+    USER_STATE[call.message.chat.id] = "topic_check"
+    bot.edit_message_text("Бот выведет список преподавателей и тем, не соответствующих шаблону \"Урок № . Тема:\"\nПришлите отчет по темам уроков в формате .xlsx", call.message.chat.id, call.message.message_id)
+
+# 5. Attendance below 65%
 @bot.callback_query_handler(func=lambda call: call.data == "low_attendance")
 def request_attendance_file(call):
     USER_STATE[call.message.chat.id] = "low_attendance"
@@ -227,9 +296,10 @@ def handle_document(message):
             "checked_week", # 2.2 Checked homeworks (week)
             "given_month", # 3.1 Given homeworks (month)
             "given_week", # 3.2 Given homeworks (week)
-            "low_attendance" # 4. Attendance below 65%
+            "topic_check", # 4. Lessons topic check
+            "low_attendance" # 5. Attendance below 65%
             ]:
-        bot.reply_to(message, "Пожалуйста, выберите действие из меню.")
+        bot.reply_to(message, "Пожалуйста, выберите действие из меню")
         send_menu(message.chat.id)
         return
 
@@ -239,9 +309,9 @@ def handle_document(message):
 
     # Catch incorrect file type
     if not file_extension == '.xlsx':
-        bot.reply_to(message, "Пожалуйста, отправьте файл в формате .xlsx")
-        send_menu(message.chat.id)
-        return
+            bot.reply_to(message, "Пожалуйста, отправьте файл в формате .xlsx")
+            send_menu(message.chat.id)
+            return
     
     # Downloading file
     file_info = bot.get_file(message.document.file_id)
@@ -263,10 +333,18 @@ def handle_document(message):
                   result = analyze_given_homeworks(file_path, "month")
             case "given_week":
                   result = analyze_given_homeworks(file_path, "week")
+            case "topic_check":
+                result = analyze_lessons_topic(file_path)
             case "low_attendance":
                 result = analyze_low_attendance(file_path)
             case _:
-                result = "Неизвестное действие. Попробуйте снова."
+                result = "Неизвестное действие. Попробуйте снова"
+
+        if len(result) >= 4096 :
+            messages = split_message(result)
+            messages = split_message(result)
+            bot.reply_to(message, messages[0])
+            bot.reply_to(message, "Ответ слишком большой, отображена только часть данных")
 
         bot.reply_to(message, result)
         send_menu(message.chat.id)
