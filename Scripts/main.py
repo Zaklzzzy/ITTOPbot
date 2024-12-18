@@ -80,16 +80,27 @@ def analyze_low_attendance(file_path: str):
 #regionStart Menu
 def send_menu(chat_id):
     markup = InlineKeyboardMarkup()
-    button1 = InlineKeyboardButton("Количество пар группы", callback_data="group_subjects")
-    button2 = InlineKeyboardButton("Посещаемость ниже 65%", callback_data="low_attendance")
-    button3 = InlineKeyboardButton("Проверенные дз педагогами", callback_data="empty")
-    button4 = InlineKeyboardButton("Выданные дз педагогами", callback_data="empty")
-    button5 = InlineKeyboardButton("Проверка темы урока", callback_data="empty")
-    button6 = InlineKeyboardButton("Проверка темы урока", callback_data="empty")
-    button7 = InlineKeyboardButton("Анализ успеваемости студентов", callback_data="empty")
+    button1 = InlineKeyboardButton("Пары группы", callback_data="group_subjects")
+    button2 = InlineKeyboardButton("Проверенные ДЗ", callback_data="empty")
+    button3 = InlineKeyboardButton("Выданные ДЗ", callback_data="empty")
+    button4 = InlineKeyboardButton("Посещаемость", callback_data="low_attendance")
+    button5 = InlineKeyboardButton("Тема урока", callback_data="empty")
+    button6 = InlineKeyboardButton("Выполнение ДЗ", callback_data="empty")
+    button7 = InlineKeyboardButton("Анализ успеваемости", callback_data="empty")
+
+    message_text = (
+        "Выберите действие:\n\n"
+        "1️⃣ *Пары группы* - количество пар группы по всем дисциплинам за неделю\n"
+        "2️⃣ *Проверенные ДЗ* - проверка % проверенных заданий\n"
+        "3️⃣ *Выданные ДЗ* - проверка % выданных заданий\n"
+        "4️⃣ *Посещаемость* - анализ посещаемости у преподавателей\n"
+        "5️⃣ *Тема урока* - проверка соответствия темы урока шаблону \"Урок №. Тема:\"\n"
+        "6️⃣ *Выполнение ДЗ* - анализ выполнения ДЗ студентами\n"
+        "7️⃣ *Анализ успеваемости* - информация успеваемости студентов"
+    )
 
     markup.add(button1, button2, button3, button4, button5, button6, button7)
-    bot.send_message(chat_id, "Выберите действие:", reply_markup=markup)
+    bot.send_message(chat_id, message_text, reply_markup=markup, parse_mode="Markdown")
     #print(message.chat.id) Only for get admin chatID
 
 @bot.message_handler(commands=['start'])
