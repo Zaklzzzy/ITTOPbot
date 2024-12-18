@@ -5,7 +5,7 @@ import os
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 # Telebot Fields
-TOKEN = "7774431217:AAHiNLWfWzlQCx71maPMQpa3cAeYGmcsvAw"
+TOKEN = "token"
 bot = telebot.TeleBot(TOKEN)
 
 TEMP_DIR = "temp_files"
@@ -78,14 +78,23 @@ def analyze_low_attendance(file_path: str):
 # Bot Functions
 
 #regionStart Menu
-@bot.message_handler(commands=['start'])
-def start(message):
+def send_menu(chat_id):
     markup = InlineKeyboardMarkup()
     button1 = InlineKeyboardButton("Количество пар группы", callback_data="group_subjects")
     button2 = InlineKeyboardButton("Посещаемость ниже 65%", callback_data="low_attendance")
-    markup.add(button1, button2)
-    bot.send_message(message.chat.id, "Выберите действие:", reply_markup=markup)
+    button3 = InlineKeyboardButton("Проверенные дз педагогами", callback_data="empty")
+    button4 = InlineKeyboardButton("Выданные дз педагогами", callback_data="empty")
+    button5 = InlineKeyboardButton("Проверка темы урока", callback_data="empty")
+    button6 = InlineKeyboardButton("Проверка темы урока", callback_data="empty")
+    button7 = InlineKeyboardButton("Анализ успеваемости студентов", callback_data="empty")
+
+    markup.add(button1, button2, button3, button4, button5, button6, button7)
+    bot.send_message(chat_id, "Выберите действие:", reply_markup=markup)
     #print(message.chat.id) Only for get admin chatID
+
+@bot.message_handler(commands=['start'])
+def start(message):
+    send_menu(message.chat.id)
 
 # Number of lessons of the group
 @bot.callback_query_handler(func=lambda call:call.data == "group_subjects")
@@ -107,6 +116,7 @@ def handle_document(message):
     
     if user_state not in ["group_subjects", "low_attendance"]:
         bot.reply_to(message, "Пожалуйста, выберите действие из меню.")
+        send_menu(message.chat.id)
         return
 
     file_name = message.document.file_name
@@ -116,6 +126,7 @@ def handle_document(message):
     # Catch incorrect file type
     if not file_extension == '.xlsx':
         bot.reply_to(message, "Пожалуйста, отправьте файл в формате .xlsx")
+        send_menu(message.chat.id)
         return
     
     # Downloading file
@@ -135,8 +146,10 @@ def handle_document(message):
             result = "Неизвестное действие. Попробуйте снова."
 
         bot.reply_to(message, result)
+        send_menu(message.chat.id)
     except Exception as e:
         bot.reply_to(message, f"Error: {e}")
+        send_menu(message.chat.id)
     finally:
         if os.path.exists(file_path):
             os.remove(file_path) # Clear temp files
