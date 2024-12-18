@@ -228,7 +228,7 @@ def send_menu(chat_id):
     bot.send_message(chat_id, message_text, reply_markup=markup, parse_mode="Markdown")
     #print(message.chat.id) Only for get admin chatID
 
-@bot.message_handler(commands=['start'])
+@bot.message_handler(commands=['menu'])
 def start(message):
     send_menu(message.chat.id)
 
