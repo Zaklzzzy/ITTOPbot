@@ -3,6 +3,7 @@ import telebot
 import pandas as pd
 import os
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+import json
 
 # Telebot Fields
 TOKEN = "token"
@@ -38,6 +39,27 @@ def split_message(text, max_lenth=4096):
         chunks.append(current_chunk.strip())
 
     return chunks
+# JSON functions
+def get_teachers():
+    try:
+        with open("data/teachers.json", "r", encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+def save_teacher(username, chat_id=None, full_name=None):
+    try:
+        teachers = get_teachers()
+        if username in teachers:
+            teachers[username]["chat_id"] = chat_id
+        else:
+            teachers[username] = {"chat_id": chat_id, "full_name": full_name}
+        
+        with open("data/teachers.json", "w", encoding="utf-8") as f:
+            json.dump(teachers, f, ensure_ascii=False, indent=4)
+        return True
+    except Exception as e:
+        print(f"Error with teacher save: {e}")
+        return False
 
 # 1. Number of lessons of the group
 def analyze_group_subjects(file_path: str):
@@ -228,8 +250,58 @@ def send_menu(chat_id):
     bot.send_message(chat_id, message_text, reply_markup=markup, parse_mode="Markdown")
     #print(message.chat.id) Only for get admin chatID
 
-@bot.message_handler(commands=['menu'])
+# Admin Commands
+@bot.message_handler(commands=['add_teacher'])
+def add_techear(message):
+    if message.chat.id != 1129590158:
+        bot.reply_to(message, "Нет доступа к команде")
+        send_menu(message.chat.id)
+        return
+    bot.reply_to(message, "Добавление преподавателя\nНапишите в первой строчке @username, во второй ФИО преподавателя\nОтветьте на это сообщение, чтобы добавить преподавателя")
+@bot.message_handler(func=lambda message: message.reply_to_message and message.reply_to_message.text.startswith("Добавление преподавателя"))
+def handle_teacher_input(message):
+    if message.chat.id != 1129590158:
+        bot.reply_to(message, "Нет доступа к данному действию")
+        send_menu(message.chat.id)
+        return
+    
+    # Split input to 2 rows
+    user_input = message.text.split("\n")
+    if len(user_input) != 2:
+        bot.reply_to(message, "Ошибка: формат данных неправильный\nНапишите в первой строчке @username, во второй ФИО преподавателя")
+        return
+    
+    username, full_name = user_input
+    username = username.strip()
+    full_name = full_name.strip()
+
+    # Check correct data
+    if not username.startswith("@") or len(username) < 2:
+        bot.reply_to(message, "Ошибка: username должен начинаться с '@' и содержать хотя бы один символ после")
+        return
+    
+    if save_teacher(username, None, full_name):
+        bot.reply_to(
+            message,
+            f"Преподаватель добавлен:\nUsername: {username}\nФИО: {full_name}\nchat_id: None"
+        )
+    else:
+        bot.reply_to(message, "Ошибка: не удалось сохранить преподавателя")
+
+# Common commands
+@bot.message_handler(commands=['start'])
 def start(message):
+    username = f"@{message.from_user.name}"
+    teachers = get_teachers()
+    if username in teachers:
+        if teachers[username]["chat_id"] == message.chat.id:
+            return
+        
+        save_teacher(username, chat_id=message.chat.id)
+        bot.reply_to(message, "Ваш ID успешно зарегистрирован")
+
+@bot.message_handler(commands=['menu'])
+def menu(message):
     send_menu(message.chat.id)
 
 # 1. Number of lessons of the group
