@@ -16,6 +16,7 @@ os.makedirs(DATA_DIR, exist_ok=True)
 
 USER_STATE = {}
 
+# 1. Number of lessons of the group
 def analyze_group_subjects(file_path: str):
     """
     Анализирует таблицу и выводит список дисцплин с количеством пар за неделю для группы
@@ -49,7 +50,59 @@ def analyze_group_subjects(file_path: str):
     
     # Return lessons list
     return result
+# 2. Checked homeworks
+def analyze_checked_homeworks(file_path: str, period):
+    """
+    Анализирует проверенные ДЗ на процент выполнения < 75%
 
+    :param file_path: Путь к файлу .xlsx
+    :param period: Период, за который анализируются данные
+    :return: Форматированная строка со списком преподавателей и процентом проверенных ДЗ
+    """
+    df = pd.read_excel(file_path, header=1)
+    if period == "month":
+        received_index, checked_index = 4, 5
+    elif period == "week":
+        received_index, checked_index = 9, 10
+    else:
+        return "Неверный период"
+    
+    results = []
+    for _, row in df.iterrows():
+        received = row.iloc[received_index]
+        checked = row.iloc[checked_index]
+        percentage = (checked / received * 100) if received else 0
+        if percentage < 75:
+            results.append(f"{row['Unnamed: 1']}: {percentage:.1f}% (Проверено {checked} из {received})")
+
+    return "\n".join(results) if results else "Все ДЗ проверены более чем на 75%"
+# 3. Given homeworks
+def analyze_given_homeworks(file_path: str, period):
+    """
+    Анализирует выданные ДЗ на процент выполнения < 70%
+
+    :param file_path: Путь к файлу .xlsx
+    :param period: Период, за который анализируются данные
+    :return: Форматированная строка со списком преподавателей и процентом выданных ДЗ
+    """
+    df = pd.read_excel(file_path, header=1)
+    if period == "month":
+        given_index, planned_index = 3, 6
+    elif period == "week":
+        given_index, planned_index = 8, 11
+    else:
+        return "Неверный период"
+    
+    results = []
+    for _, row in df.iterrows():
+        given = row.iloc[given_index]
+        planned = row.iloc[planned_index]
+        percentage = (given / planned * 100) if planned else 0
+        if percentage < 70:
+            results.append(f"{row['Unnamed: 1']}: {percentage:.1f}% (Выдано {given} из {planned})")
+
+    return "\n".join(results) if results else "Все ДЗ выданы более чем на 70%."
+# 4. Attendance below 65%
 def analyze_low_attendance(file_path: str):
     """
     Анализирует отчет по посещаемости и возвращает список преподавателей с посещаемостью ниже 65%
@@ -70,7 +123,7 @@ def analyze_low_attendance(file_path: str):
     
     result = "Список преподавателей с посещаемостью групп ниже 65%:\n"
     for _, row in low_attendance.iterrows():
-        result += f"{row['ФИО преподавателя']} - {row['Средняя посещаемость']}%\n"
+        result += f"{row['ФИО преподавателя']} - {row['Средняя посещаемость']:.0f}%\n"
 
     return result
 
@@ -80,14 +133,24 @@ def analyze_low_attendance(file_path: str):
 #regionStart Menu
 def send_menu(chat_id):
     markup = InlineKeyboardMarkup()
-    button1 = InlineKeyboardButton("Пары группы", callback_data="group_subjects")
-    button2 = InlineKeyboardButton("Проверенные ДЗ", callback_data="empty")
-    button3 = InlineKeyboardButton("Выданные ДЗ", callback_data="empty")
-    button4 = InlineKeyboardButton("Посещаемость", callback_data="low_attendance")
+    group_subjects_button = InlineKeyboardButton("Пары группы", callback_data="group_subjects")
+    checked_homeworks_button = InlineKeyboardButton("Проверенные ДЗ", callback_data="checked_homeworks")
+    given_homeworks_button = InlineKeyboardButton("Выданные ДЗ", callback_data="given_homeworks")
+    low_attendance_button = InlineKeyboardButton("Посещаемость", callback_data="low_attendance")
     button5 = InlineKeyboardButton("Тема урока", callback_data="empty")
     button6 = InlineKeyboardButton("Выполнение ДЗ", callback_data="empty")
     button7 = InlineKeyboardButton("Анализ успеваемости", callback_data="empty")
 
+    markup.add(
+        group_subjects_button, 
+        checked_homeworks_button, 
+        given_homeworks_button, 
+        low_attendance_button, 
+        button5, 
+        button6, 
+        button7
+        )
+    
     message_text = (
         "Выберите действие:\n\n"
         "1️⃣ *Пары группы* - количество пар группы по всем дисциплинам за неделю\n"
@@ -99,7 +162,6 @@ def send_menu(chat_id):
         "7️⃣ *Анализ успеваемости* - информация успеваемости студентов"
     )
 
-    markup.add(button1, button2, button3, button4, button5, button6, button7)
     bot.send_message(chat_id, message_text, reply_markup=markup, parse_mode="Markdown")
     #print(message.chat.id) Only for get admin chatID
 
@@ -107,12 +169,46 @@ def send_menu(chat_id):
 def start(message):
     send_menu(message.chat.id)
 
-# Number of lessons of the group
+# 1. Number of lessons of the group
 @bot.callback_query_handler(func=lambda call:call.data == "group_subjects")
 def request_xlsx_file(call):
     USER_STATE[call.message.chat.id] = "group_subjects"
     bot.edit_message_text("Бот подсчитает количество проведенных пар по всем дисциплинам\nПришлите файл формата .xlsx", call.message.chat.id, call.message.message_id)
-# Attendance below 65%
+
+# 2. Checked homeworks
+@bot.callback_query_handler(func=lambda call:call.data == "checked_homeworks")
+def choose_period_checked(call):
+    markup = InlineKeyboardMarkup()
+    month_button = InlineKeyboardButton("Месяц", callback_data="checked_month")
+    week_button = InlineKeyboardButton("Неделя", callback_data="checked_week")
+    markup.row(month_button, week_button)
+    bot.edit_message_text("Выберите период для анализа проверенных ДЗ:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+
+# 3. Given homeworks
+@bot.callback_query_handler(func=lambda call:call.data == "given_homeworks")
+def choose_period_given(call):
+    markup = InlineKeyboardMarkup()
+    month_button = InlineKeyboardButton("Месяц", callback_data="given_month")
+    week_button = InlineKeyboardButton("Неделя", callback_data="given_week")
+    markup.row(month_button, week_button)
+    bot.edit_message_text("Выберите период для анализа выданных ДЗ:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+
+# 2-3. Homeworks file handler
+@bot.callback_query_handler(func=lambda call: call.data in ["checked_month", "checked_week", "given_month", "given_week"])
+def request_homeworks_file(call):
+    USER_STATE[call.message.chat.id] = call.data
+    match call.data:
+        case "checked_month":
+            bot.edit_message_text("Бот подсчитает % проверенных домашних заданий педагогами на группу за месяц\nПришлите файл формата .xlsx", call.message.chat.id, call.message.message_id)
+        case "checked_week":
+            bot.edit_message_text("Бот подсчитает % проверенных домашних заданий педагогами на группу за неделю\nПришлите файл формата .xlsx", call.message.chat.id, call.message.message_id)
+        case "given_month":
+            bot.edit_message_text("Бот подсчитает % выданных домашних заданий педагогами за месяц\nПришлите файл формата .xlsx", call.message.chat.id, call.message.message_id)
+        case "given_week":
+            bot.edit_message_text("Бот подсчитает % выданных домашних заданий педагогами за неделю\nПришлите файл формата .xlsx", call.message.chat.id, call.message.message_id)
+    
+
+# 4. Attendance below 65%
 @bot.callback_query_handler(func=lambda call: call.data == "low_attendance")
 def request_attendance_file(call):
     USER_STATE[call.message.chat.id] = "low_attendance"
@@ -125,7 +221,14 @@ def handle_document(message):
     chat_id = message.chat.id
     user_state = USER_STATE.get(chat_id)
     
-    if user_state not in ["group_subjects", "low_attendance"]:
+    if user_state not in [
+            "group_subjects", # 1. Number of lessons of the group
+            "checked_month", # 2.1. Checked homeworks (month)
+            "checked_week", # 2.2 Checked homeworks (week)
+            "given_month", # 3.1 Given homeworks (month)
+            "given_week", # 3.2 Given homeworks (week)
+            "low_attendance" # 4. Attendance below 65%
+            ]:
         bot.reply_to(message, "Пожалуйста, выберите действие из меню.")
         send_menu(message.chat.id)
         return
@@ -149,12 +252,21 @@ def handle_document(message):
         new_file.write(downloaded_file)
 
     try:
-        if user_state == "low_attendance":
-            result = analyze_low_attendance(file_path)
-        elif user_state == "group_subjects":
-            result = analyze_group_subjects(file_path)
-        else:
-            result = "Неизвестное действие. Попробуйте снова."
+        match user_state:
+            case "group_subjects":
+                result = analyze_group_subjects(file_path)
+            case "checked_month":
+                  result = analyze_checked_homeworks(file_path, "month")
+            case "checked_week":
+                  result = analyze_checked_homeworks(file_path, "week")
+            case "given_month":
+                  result = analyze_given_homeworks(file_path, "month")
+            case "given_week":
+                  result = analyze_given_homeworks(file_path, "week")
+            case "low_attendance":
+                result = analyze_low_attendance(file_path)
+            case _:
+                result = "Неизвестное действие. Попробуйте снова."
 
         bot.reply_to(message, result)
         send_menu(message.chat.id)
