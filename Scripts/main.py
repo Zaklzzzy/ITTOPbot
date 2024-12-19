@@ -208,10 +208,75 @@ def analyze_low_attendance(file_path: str):
         result += f"{row['ФИО преподавателя']} - {row['Средняя посещаемость']:.0f}%\n"
 
     return result
-# 6. 
-#def 
-# 7. 
-#def 
+# 6. Low Homework Percentage
+def analyze_low_homework_percentage(file_path: str):
+    """
+    Анализирует процент выполнения студентами выполнения домашних заданий
+
+    Возвращает список студентов со Percentage Homework ниже 50%
+
+    :param file_path: Путь к файлу .xlsx
+    :return: Форматированная строка со списком студентов
+    """
+    df = pd.read_excel(file_path)
+
+    required_columns = ["FIO", "Percentage Homework"]
+    if not all(col in df.columns for col in required_columns):
+        return "Ошибка: в файле отсутствуют необходимые столбцы (FIO, Percentage Homework)"
+
+    # Students list with low homework percentage
+    low_percentage_students = []
+
+    for _, row in df.iterrows():
+        fio = row["FIO"]
+        percentage = row["Percentage Homework"]
+
+        if pd.notna(percentage) and isinstance(percentage, (int, float)) and percentage < 50:
+            low_percentage_students.append(f"{fio}: {percentage:.0f}")
+
+    # Make result
+    if low_percentage_students:
+        result = "Студенты с процентом выполненных ДЗ ниже 50%:\n" + "\n".join(low_percentage_students)
+    else:
+        result = "Все студенты имеют процент выполненных ДЗ 50% или выше "
+    return result
+
+    return 
+# 7. Marks analysis
+def analyze_bad_marks(file_path : str):
+    """
+    Анализирует оценки студентов за Homework и Classroom
+
+    Возвращает список студентов со средней оценкой ниже 3
+
+    :param file_path: Путь к файлу .xlsx
+    :return: Форматированная строка со списком студентов
+    """
+    df = pd.read_excel(file_path)
+
+    required_columns = ["FIO", "Homework", "Classroom"]
+    if not all(col in df.columns for col in required_columns):
+        return "Ошибка: в файле отсутствуют необходимые столбцы (FIO, Homework, Classroom)"
+    
+    # Students list with bad marks
+    bad_marks_students = []
+
+    for _, row in df.iterrows():
+        fio = row["FIO"]
+        homework = row["Homework"]
+        classroom = row["Classroom"]
+
+        if pd.notna(homework) and pd.notna(classroom) and isinstance(homework, (int, float) and isinstance(classroom, (int, float))):
+            average_score = (homework + classroom) / 2
+            if average_score < 3:
+                bad_marks_students.append(f"{fio}: {average_score:.1f}")
+
+    # Make result
+    if bad_marks_students:
+        result = "Студенты с средней оценкой ниже 3:\n" + "\n".join(bad_marks_students)
+    else:
+        result = "Все студенты имеют среднюю оценку 3 или выше"
+    return result
 
 # Bot Functions
 
@@ -223,8 +288,8 @@ def send_menu(chat_id):
     given_homeworks_button = InlineKeyboardButton("Выданные ДЗ", callback_data="given_homeworks")
     topic_check_button = InlineKeyboardButton("Тема урока", callback_data="topic_check")
     low_attendance_button = InlineKeyboardButton("Посещаемость", callback_data="low_attendance")
-    button6 = InlineKeyboardButton("Выполнение ДЗ", callback_data="empty")
-    button7 = InlineKeyboardButton("Анализ успеваемости", callback_data="empty")
+    low_homework_percentage_button = InlineKeyboardButton("Выполнение ДЗ", callback_data="low_homework_percentage")
+    marks_analysis_button = InlineKeyboardButton("Анализ успеваемости", callback_data="marks_analysis")
 
     markup.add(
         group_subjects_button, 
@@ -232,8 +297,8 @@ def send_menu(chat_id):
         given_homeworks_button, 
         topic_check_button, 
         low_attendance_button, 
-        button6, 
-        button7
+        low_homework_percentage_button, 
+        marks_analysis_button
         )
     
     message_text = (
@@ -252,7 +317,7 @@ def send_menu(chat_id):
 
 # Admin Commands
 @bot.message_handler(commands=['add_teacher'])
-def add_techear(message):
+def add_teacher(message):
     if message.chat.id != 1129590158:
         bot.reply_to(message, "Нет доступа к команде")
         send_menu(message.chat.id)
@@ -355,6 +420,18 @@ def request_attendance_file(call):
     USER_STATE[call.message.chat.id] = "low_attendance"
     bot.edit_message_text("Бот выведет список преподавателей, средняя посещаемость которых ниже 65%\nПришлите отчет по посещаемости студентов в формате .xlsx", call.message.chat.id, call.message.message_id)
 
+# 6. Low Homework Percentage
+@bot.callback_query_handler(func=lambda call: call.data == "low_homework_percentage")
+def request_attendance_file(call):
+    USER_STATE[call.message.chat.id] = "low_homework_percentage"
+    bot.edit_message_text("Бот выведет список студентов, процент выполнения ДЗ которых ниже 50%\nПришлите отчет по студентам в формате .xlsx", call.message.chat.id, call.message.message_id)
+
+# 7. Marks analysis
+@bot.callback_query_handler(func=lambda call: call.data == "marks_analysis")
+def request_attendance_file(call):
+    USER_STATE[call.message.chat.id] = "marks_analysis"
+    bot.edit_message_text("Бот выведет список студентов, средняя оценка которых ниже 3\nПришлите отчет по студентам в формате .xlsx", call.message.chat.id, call.message.message_id)
+
 # Download handler .xlsx files
 @bot.message_handler(content_types=['document'])
 def handle_document(message):
@@ -369,7 +446,9 @@ def handle_document(message):
             "given_month", # 3.1 Given homeworks (month)
             "given_week", # 3.2 Given homeworks (week)
             "topic_check", # 4. Lessons topic check
-            "low_attendance" # 5. Attendance below 65%
+            "low_attendance", # 5. Attendance below 65%
+            "low_homework_percentage", # 6. Low Homework Percentage
+            "marks_analysis" # 7. Marks analysis
             ]:
         bot.reply_to(message, "Пожалуйста, выберите действие из меню")
         send_menu(message.chat.id)
@@ -409,14 +488,17 @@ def handle_document(message):
                 result = analyze_lessons_topic(file_path)
             case "low_attendance":
                 result = analyze_low_attendance(file_path)
+            case "low_homework_percentage":
+                result = analyze_low_homework_percentage(file_path)
+            case "marks_analysis":
+                result = analyze_bad_marks(file_path)
             case _:
                 result = "Неизвестное действие. Попробуйте снова"
 
         if len(result) >= 4096 :
             messages = split_message(result)
-            messages = split_message(result)
             bot.reply_to(message, messages[0])
-            bot.reply_to(message, "❗Ответ слишком большой, отображена только часть данных❗")
+            bot.reply_to(message, "❗Ответ слишком большой, отображена только часть данных")
 
         bot.reply_to(message, result)
         send_menu(message.chat.id)
