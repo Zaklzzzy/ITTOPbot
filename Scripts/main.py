@@ -352,6 +352,23 @@ def handle_teacher_input(message):
         )
     else:
         bot.reply_to(message, "Ошибка: не удалось сохранить преподавателя")
+@bot.message_handler(commands=['show_teachers'])
+def show_teachers(message):
+    if message.chat.id != 1129590158:
+        bot.reply_to(message, "Нет доступа к команде")
+        send_menu(message.chat.id)
+        return
+    
+    teachers = get_teachers()
+    if not teachers:
+        bot.reply_to(message, "Список преподавателей пуст")
+        return
+    
+    result = "Список преподавателей:\n"
+    for username, data in teachers.items():
+        full_name = data.get("full_name", "Неизвестно")
+        result += f"{username} : {full_name}\n"
+    bot.reply_to(message, result)
 
 # Common commands
 @bot.message_handler(commands=['start'])
