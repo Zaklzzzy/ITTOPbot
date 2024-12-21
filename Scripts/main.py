@@ -6,7 +6,7 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import json
 
 # Telebot Fields
-TOKEN = "7774431217:AAH-6QxZbfoox01zmI1ok0TvTPKIxd76GwM"
+TOKEN = "token"
 bot = telebot.TeleBot(TOKEN)
 
 TEMP_DIR = "temp_files"
