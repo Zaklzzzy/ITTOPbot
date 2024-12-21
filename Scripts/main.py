@@ -489,7 +489,8 @@ def handle_document(message):
         return
 
     file_name = message.document.file_name
-    _, file_extension = os.path.splitext(file_name).lower()
+    _, file_extension = os.path.splitext(file_name)
+    file_extension = file_extension.lower()
 
     # Catch incorrect file type
     if not file_extension == '.xlsx':
