@@ -4,9 +4,12 @@ import pandas as pd
 import os
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import json
+from dotenv import load_dotenv
+
+load_dotenv("config.env")
 
 # Telebot Fields
-TOKEN = "token"
+TOKEN = os.getenv("TOKEN")
 bot = telebot.TeleBot(TOKEN)
 
 TEMP_DIR = "temp_files"
