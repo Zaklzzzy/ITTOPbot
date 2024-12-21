@@ -6,7 +6,7 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import json
 
 # Telebot Fields
-TOKEN = "token"
+TOKEN = "7774431217:AAH-6QxZbfoox01zmI1ok0TvTPKIxd76GwM"
 bot = telebot.TeleBot(TOKEN)
 
 TEMP_DIR = "temp_files"
@@ -171,7 +171,6 @@ def analyze_lessons_topic(file_path: str):
         df = pd.read_excel(file_path)
 
         # Get all need columns
-        date_column = next((col for col in df.columns if "Date" in col), None)
         topic_column = next((col for col in df.columns if "Тема" in col), None)
         teacher_column = next((col for col in df.columns if "ФИО преподавателя" in col), None)
         
@@ -181,15 +180,18 @@ def analyze_lessons_topic(file_path: str):
         # Checking for compliance with the mask
         incorrect_rows = []
         for _, row in df.iterrows():
-            date = row[date_column]
             teacher = row[teacher_column]
             topic = row[topic_column]
 
             if not isinstance(topic, str) or not re.match(r"Урок №.* Тема:.*", topic):
-                incorrect_rows.append(f"Дата: {date} | Преподаватель: {teacher} | Тема: {topic}")
+                incorrect_rows.append(f"Преподаватель: {teacher}")
         
         # Make result
-        return "\n".join(incorrect_rows) if incorrect_rows else "Все темы соответствуют маске Урок №. Тема:"
+        if incorrect_rows:
+            result = "Список преподавателей, заполнивших тему не по шаблону:\n" + "\n".join(set(incorrect_rows))
+        else:
+            result = "Все темы соответствуют маске Урок №. Тема:"
+        return result
     except Exception as e:
         return f"Ошибка при анализе: {e}"
 # 5. Attendance below 65%
@@ -391,7 +393,7 @@ def show_teachers(message):
 # Common commands
 @bot.message_handler(commands=['start'])
 def start(message):
-    username = f"@{message.from_user.name}"
+    username = f"@{message.from_user.username}"
     teachers = get_teachers()
     if username in teachers:
         if teachers[username]["chat_id"] == message.chat.id:
