@@ -1,8 +1,9 @@
 import re
 import telebot
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import pandas as pd
 import os
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+import pyexcel as p
 import json
 from dotenv import load_dotenv
 
@@ -19,6 +20,8 @@ DATA_DIR = "data"
 os.makedirs(DATA_DIR, exist_ok=True)
 
 USER_STATE = {}
+
+full_result = []
 
 # Additional functions
 def split_message(text, max_lenth=4096):
@@ -42,6 +45,32 @@ def split_message(text, max_lenth=4096):
         chunks.append(current_chunk.strip())
 
     return chunks
+def download_and_convert_xls(file_id: str, temp_dir: str, file_name: str) -> str:
+    """
+    Загружает .xls файл, конвертирует его в .xlsx и возвращает путь к .xlsx файлу
+
+    :param file_id: Идентификатор файла из Telegram
+    :param temp_dir: Директория для временных файлов
+    :param file_name: Имя файла
+    :return: Путь к .xlsx файлу
+    """
+    # Download .xls file
+    file_info = bot.get_file(file_id)
+    downloaded_file = bot.download_file(file_info.file_path)
+    xls_file_path = os.path.join(temp_dir, file_name)
+
+    with open(xls_file_path, "wb") as new_file:
+        new_file.write(downloaded_file)
+    
+    # Convert path to .xlsx
+    xlsx_file_name = file_name.replace(".xls", ".xlsx")
+    xlsx_file_path = os.path.join(temp_dir, xlsx_file_name)
+
+    # Open .xls and convert to .xlsx
+    p.save_book_as(file_name=xls_file_path, dest_file_name=xlsx_file_path)
+
+    return xlsx_file_path
+
 # JSON functions
 def get_teachers():
     try:
@@ -252,7 +281,7 @@ def analyze_low_homework_percentage(file_path: str):
 
             if pd.notna(percentage) and isinstance(percentage, (int, float)) and percentage < 50:
                 low_percentage_students.append(f"{fio}: {percentage:.0f}")
-
+        
         # Make result
         if low_percentage_students:
             result = "Студенты с процентом выполненных ДЗ ниже 50%:\n" + "\n".join(low_percentage_students)
@@ -413,7 +442,7 @@ def menu(message):
 @bot.callback_query_handler(func=lambda call:call.data == "group_subjects")
 def request_xlsx_file(call):
     USER_STATE[call.message.chat.id] = "group_subjects"
-    bot.edit_message_text("Бот подсчитает количество проведенных пар по всем дисциплинам\nПришлите расписание группы в формате .xlsx", call.message.chat.id, call.message.message_id)
+    bot.edit_message_text("Бот подсчитает количество проведенных пар по всем дисциплинам\nПришлите расписание группы в формате .xls или .xlsx", call.message.chat.id, call.message.message_id)
 
 # 2. Checked homeworks
 @bot.callback_query_handler(func=lambda call:call.data == "checked_homeworks")
@@ -437,7 +466,7 @@ def choose_period_given(call):
 @bot.callback_query_handler(func=lambda call: call.data in ["checked_month", "checked_week", "given_month", "given_week"])
 def request_homeworks_file(call):
     USER_STATE[call.message.chat.id] = call.data
-    message_part = "Пришлите отчет по домашним заданиям формате .xlsx"
+    message_part = "Пришлите отчет по домашним заданиям формате .xls или .xlsx"
     match call.data:
         case "checked_month":
             bot.edit_message_text("Бот подсчитает % проверенных домашних заданий педагогами на группу за месяц\n" + message_part, call.message.chat.id, call.message.message_id)
@@ -452,25 +481,25 @@ def request_homeworks_file(call):
 @bot.callback_query_handler(func=lambda call: call.data == "topic_check")
 def request_topic_file(call):
     USER_STATE[call.message.chat.id] = "topic_check"
-    bot.edit_message_text("Бот выведет список преподавателей и тем, не соответствующих шаблону \"Урок № . Тема:\"\nПришлите отчет по темам уроков в формате .xlsx", call.message.chat.id, call.message.message_id)
+    bot.edit_message_text("Бот выведет список преподавателей и тем, не соответствующих шаблону \"Урок № . Тема:\"\nПришлите отчет по темам уроков в формате .xls или .xlsx", call.message.chat.id, call.message.message_id)
 
 # 5. Attendance below 65%
 @bot.callback_query_handler(func=lambda call: call.data == "low_attendance")
 def request_attendance_file(call):
     USER_STATE[call.message.chat.id] = "low_attendance"
-    bot.edit_message_text("Бот выведет список преподавателей, средняя посещаемость которых ниже 65%\nПришлите отчет по посещаемости студентов в формате .xlsx", call.message.chat.id, call.message.message_id)
+    bot.edit_message_text("Бот выведет список преподавателей, средняя посещаемость которых ниже 65%\nПришлите отчет по посещаемости студентов в формате .xls или .xlsx", call.message.chat.id, call.message.message_id)
 
 # 6. Low Homework Percentage
 @bot.callback_query_handler(func=lambda call: call.data == "low_homework_percentage")
 def request_attendance_file(call):
     USER_STATE[call.message.chat.id] = "low_homework_percentage"
-    bot.edit_message_text("Бот выведет список студентов, процент выполнения ДЗ которых ниже 50%\nПришлите отчет по студентам в формате .xlsx", call.message.chat.id, call.message.message_id)
+    bot.edit_message_text("Бот выведет список студентов, процент выполнения ДЗ которых ниже 50%\nПришлите отчет по студентам в формате .xls или .xlsx", call.message.chat.id, call.message.message_id)
 
 # 7. Marks analysis
 @bot.callback_query_handler(func=lambda call: call.data == "marks_analysis")
 def request_attendance_file(call):
     USER_STATE[call.message.chat.id] = "marks_analysis"
-    bot.edit_message_text("Бот выведет список студентов, средняя оценка которых ниже 3\nПришлите отчет по студентам в формате .xlsx", call.message.chat.id, call.message.message_id)
+    bot.edit_message_text("Бот выведет список студентов, средняя оценка которых ниже 3\nПришлите отчет по студентам в формате .xls или .xlsx", call.message.chat.id, call.message.message_id)
 
 # Download handler .xlsx files
 @bot.message_handler(content_types=['document'])
@@ -498,18 +527,19 @@ def handle_document(message):
     file_extension = file_extension.lower()
 
     # Catch incorrect file type
-    if not file_extension == '.xlsx':
-            bot.reply_to(message, "Пожалуйста, отправьте файл в формате .xlsx")
-            send_menu(chat_id)
-            return
-    
-    # Downloading file
-    file_info = bot.get_file(message.document.file_id)
-    downloaded_file = bot.download_file(file_info.file_path)
-    file_path = os.path.join(TEMP_DIR, file_name)
+    if file_extension == '.xls':
+        file_path = download_and_convert_xls(message.document.file_id, TEMP_DIR, file_name)
+    elif file_extension == '.xlsx':
+        file_info = bot.get_file(message.document.file_id)
+        downloaded_file = bot.download_file(file_info.file_path)
+        file_path = os.path.join(TEMP_DIR, file_name)
 
-    with open(file_path, "wb") as new_file:
-        new_file.write(downloaded_file)
+        with open(file_path, "wb") as new_file:
+            new_file.write(downloaded_file)
+    else:
+        bot.reply_to(message, "Пожалуйста, отправьте файл в формате .xls или .xlsx")
+        send_menu(chat_id)
+        return
 
     try:
         match user_state:
@@ -534,12 +564,13 @@ def handle_document(message):
             case _:
                 result = "Неизвестное действие. Попробуйте снова"
 
-        if len(result) >= 4096 :
+        if len(result) >= 4096:
             messages = split_message(result)
-            bot.reply_to(message, messages[0])
-            bot.reply_to(message, "❗Ответ слишком большой, отображена только часть данных")
+            for msg in messages:
+                bot.reply_to(message, msg)
+        else:
+            bot.reply_to(message, result)
 
-        bot.reply_to(message, result)
         send_menu(chat_id)
     except Exception as e:
         bot.reply_to(message, f"Ошибка: {e}")
