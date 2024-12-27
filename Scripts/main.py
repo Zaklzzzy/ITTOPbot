@@ -5,6 +5,8 @@ import pandas as pd
 import os
 import pyexcel as p
 import json
+import shutil
+import atexit
 from dotenv import load_dotenv
 
 load_dotenv("config.env")
@@ -70,6 +72,10 @@ def download_and_convert_xls(file_id: str, temp_dir: str, file_name: str) -> str
     p.save_book_as(file_name=xls_file_path, dest_file_name=xlsx_file_path)
 
     return xlsx_file_path
+def clean_temp_folder():
+    if os.path.exists(TEMP_DIR):
+        shutil.rmtree(TEMP_DIR)
+        os.makedirs(TEMP_DIR)
 
 # JSON functions
 def get_teachers():
@@ -580,6 +586,8 @@ def handle_document(message):
         if os.path.exists(file_path):
             os.remove(file_path) 
 #endregion
+
+atexit.register(clean_temp_folder)
 
 print("Bot started...")
 bot.polling(none_stop=True)
