@@ -322,7 +322,7 @@ def analyze_bad_marks(file_path : str):
             homework = row["Homework"]
             classroom = row["Classroom"]
 
-            if pd.notna(homework) and pd.notna(classroom) and isinstance(homework, (int, float) and isinstance(classroom, (int, float))):
+            if pd.notna(homework) and pd.notna(classroom) and isinstance(homework, (int, float)) and isinstance(classroom, (int, float)):
                 average_score = (homework + classroom) / 2
                 if average_score < 3:
                     bad_marks_students.append(f"{fio}: {average_score:.1f}")
@@ -371,7 +371,7 @@ def send_menu(chat_id):
     )
 
     bot.send_message(chat_id, message_text, reply_markup=markup, parse_mode="Markdown")
-    #print(message.chat.id) Only for get admin chatID
+    #print(chat_id) #Only for get admin chatID
 
 # Admin Commands
 @bot.message_handler(commands=['add_teacher'])
