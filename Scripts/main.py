@@ -3,7 +3,8 @@ import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import pandas as pd
 import os
-import pyexcel as p
+import xlrd
+import openpyxl
 import json
 import shutil
 import atexit
@@ -64,12 +65,27 @@ def download_and_convert_xls(file_id: str, temp_dir: str, file_name: str) -> str
     with open(xls_file_path, "wb") as new_file:
         new_file.write(downloaded_file)
     
+    if not file_name.endswith(".xls"):
+        raise RuntimeError(f"Ошибка: файл {file_name} не является .xls файлом.")
+
     # Convert path to .xlsx
     xlsx_file_name = file_name.replace(".xls", ".xlsx")
     xlsx_file_path = os.path.join(temp_dir, xlsx_file_name)
 
     # Open .xls and convert to .xlsx
-    p.save_book_as(file_name=xls_file_path, dest_file_name=xlsx_file_path)
+    try:
+        wb_old = xlrd.open_workbook(xls_file_path, formatting_info=False)
+        wb_new = openpyxl.Workbook()
+        ws_new = wb_new.active
+
+        for ws_old in wb_old.sheets():
+            for row in range(ws_old.nrows):
+                for col in range(ws_old.ncols):
+                    ws_new.cell(row=row + 1, column=col + 1).value = ws_old.cell(row, col).value
+
+        wb_new.save(xlsx_file_path)
+    except Exception as e:
+        raise RuntimeError(f"Ошибка при конвертации .xls в .xlsx: {e}")
 
     return xlsx_file_path
 def clean_temp_folder():
